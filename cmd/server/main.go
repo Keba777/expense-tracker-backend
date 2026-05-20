@@ -110,13 +110,20 @@ func main() {
 	})
 
 	app.Use(helmet.New())
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     joinOrigins(cfg.CORS.Origins),
+
+	corsConfig := cors.Config{
 		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
 		AllowHeaders:     "Origin,Content-Type,Authorization",
 		AllowCredentials: true,
 		MaxAge:           86400,
-	}))
+	}
+	if len(cfg.CORS.Origins) == 1 && cfg.CORS.Origins[0] == "*" {
+		// Reflect the request origin back so credentials still work with wildcard intent
+		corsConfig.AllowOriginsFunc = func(origin string) bool { return true }
+	} else {
+		corsConfig.AllowOrigins = joinOrigins(cfg.CORS.Origins)
+	}
+	app.Use(cors.New(corsConfig))
 	app.Use(limiter.New(limiter.Config{
 		Max:        cfg.RateLimit.Max,
 		Expiration: time.Duration(cfg.RateLimit.ExpirySeconds) * time.Second,
