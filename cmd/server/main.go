@@ -118,8 +118,10 @@ func main() {
 		MaxAge:           86400,
 	}
 	if len(cfg.CORS.Origins) == 1 && cfg.CORS.Origins[0] == "*" {
-		// Reflect the request origin back so credentials still work with wildcard intent
+		// AllowOriginsFunc allows all origins; AllowOrigins must be a non-"*" non-empty
+		// placeholder to prevent Fiber v2 from panicking when AllowCredentials is true.
 		corsConfig.AllowOriginsFunc = func(origin string) bool { return true }
+		corsConfig.AllowOrigins = "http://localhost"
 	} else {
 		corsConfig.AllowOrigins = joinOrigins(cfg.CORS.Origins)
 	}
