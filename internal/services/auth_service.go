@@ -1,0 +1,160 @@
+package services
+
+import (
+	"context"
+	"expense-tracker/internal/models"
+	"expense-tracker/internal/repository"
+	pkgerrors "expense-tracker/pkg/errors"
+	"expense-tracker/pkg/jwt"
+	"expense-tracker/pkg/password"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+)
+
+type RegisterInput struct {
+	Email     string `json:"email"     validate:"required,email"`
+	Password  string `json:"password"  validate:"required,min=8"`
+	FirstName string `json:"firstName" validate:"required,min=1,max=100"`
+	LastName  string `json:"lastName"  validate:"required,min=1,max=100"`
+	Currency  string `json:"currency"  validate:"omitempty,len=3"`
+	Timezone  string `json:"timezone"  validate:"omitempty"`
+}
+
+type LoginInput struct {
+	Email    string `json:"email"    validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+}
+
+type AuthResponse struct {
+	User   *models.UserResponse `json:"user"`
+	Tokens *jwt.TokenPair       `json:"tokens"`
+}
+
+type AuthService interface {
+	Register(ctx context.Context, input *RegisterInput) (*AuthResponse, error)
+	Login(ctx context.Context, input *LoginInput) (*AuthResponse, error)
+	RefreshTokens(ctx context.Context, refreshToken string) (*jwt.TokenPair, error)
+	GetUser(ctx context.Context, userID uuid.UUID) (*models.UserResponse, error)
+}
+
+type authService struct {
+	userRepo     repository.UserRepository
+	categoryRepo repository.CategoryRepository
+	jwtManager   *jwt.Manager
+}
+
+func NewAuthService(
+	userRepo repository.UserRepository,
+	categoryRepo repository.CategoryRepository,
+	jwtManager *jwt.Manager,
+) AuthService {
+	return &authService{
+		userRepo:     userRepo,
+		categoryRepo: categoryRepo,
+		jwtManager:   jwtManager,
+	}
+}
+
+func (s *authService) Register(ctx context.Context, input *RegisterInput) (*AuthResponse, error) {
+	existing, err := s.userRepo.FindByEmail(ctx, input.Email)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, pkgerrors.ErrInternalServer
+	}
+	if existing != nil {
+		return nil, pkgerrors.ErrConflict
+	}
+
+	hash, err := password.Hash(input.Password)
+	if err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+
+	currency := input.Currency
+	if currency == "" {
+		currency = "USD"
+	}
+	timezone := input.Timezone
+	if timezone == "" {
+		timezone = "UTC"
+	}
+
+	user := &models.User{
+		Email:        input.Email,
+		PasswordHash: hash,
+		FirstName:    input.FirstName,
+		LastName:     input.LastName,
+		Currency:     currency,
+		Timezone:     timezone,
+		Plan:         models.PlanFree,
+		IsActive:     true,
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+
+	defaultCats := models.SeedDefaultCategories(user.ID)
+	if err := s.categoryRepo.BulkCreate(ctx, defaultCats); err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+
+	tokens, err := s.jwtManager.GeneratePair(user.ID, user.Email, string(user.Plan))
+	if err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+
+	return &AuthResponse{User: user.ToResponse(), Tokens: tokens}, nil
+}
+
+func (s *authService) Login(ctx context.Context, input *LoginInput) (*AuthResponse, error) {
+	user, err := s.userRepo.FindByEmail(ctx, input.Email)
+	if err != nil {
+		return nil, pkgerrors.ErrInvalidCredentials
+	}
+
+	if !password.Verify(input.Password, user.PasswordHash) {
+		return nil, pkgerrors.ErrInvalidCredentials
+	}
+
+	tokens, err := s.jwtManager.GeneratePair(user.ID, user.Email, string(user.Plan))
+	if err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+
+	return &AuthResponse{User: user.ToResponse(), Tokens: tokens}, nil
+}
+
+func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*jwt.TokenPair, error) {
+	claims, err := s.jwtManager.ValidateRefresh(refreshToken)
+	if err != nil {
+		return nil, pkgerrors.ErrTokenInvalid
+	}
+
+	user, err := s.userRepo.FindByID(ctx, claims.UserID)
+	if err != nil {
+		return nil, pkgerrors.ErrUnauthorized
+	}
+
+	tokens, err := s.jwtManager.GeneratePair(user.ID, user.Email, string(user.Plan))
+	if err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+
+	return tokens, nil
+}
+
+func (s *authService) GetUser(ctx context.Context, userID uuid.UUID) (*models.UserResponse, error) {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.ErrNotFound
+	}
+	return user.ToResponse(), nil
+}
+
+// avoid import cycle — inline standard errors
+var errors = struct {
+	Is func(error, error) bool
+}{
+	Is: pkgerrors.Is,
+}
