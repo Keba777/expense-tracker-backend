@@ -111,21 +111,16 @@ func main() {
 
 	app.Use(helmet.New())
 
-	corsConfig := cors.Config{
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Authorization",
-		AllowCredentials: true,
-		MaxAge:           86400,
+	corsOrigins := joinOrigins(cfg.CORS.Origins)
+	if corsOrigins == "" {
+		corsOrigins = "*"
 	}
-	if len(cfg.CORS.Origins) == 1 && cfg.CORS.Origins[0] == "*" {
-		// AllowOriginsFunc allows all origins; AllowOrigins must be a non-"*" non-empty
-		// placeholder to prevent Fiber v2 from panicking when AllowCredentials is true.
-		corsConfig.AllowOriginsFunc = func(origin string) bool { return true }
-		corsConfig.AllowOrigins = "http://localhost"
-	} else {
-		corsConfig.AllowOrigins = joinOrigins(cfg.CORS.Origins)
-	}
-	app.Use(cors.New(corsConfig))
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: corsOrigins,
+		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders: "Origin,Content-Type,Authorization",
+		MaxAge:       86400,
+	}))
 	app.Use(limiter.New(limiter.Config{
 		Max:        cfg.RateLimit.Max,
 		Expiration: time.Duration(cfg.RateLimit.ExpirySeconds) * time.Second,
