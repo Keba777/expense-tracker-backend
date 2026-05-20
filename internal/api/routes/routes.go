@@ -44,6 +44,7 @@ func Register(app *fiber.App, h *Handlers, jwtManager *jwt.Manager) {
 	txn.Get("/", h.Transaction.List)
 	txn.Post("/", h.Transaction.Create)
 	txn.Get("/summary", h.Transaction.Summary)
+	txn.Get("/export", h.Transaction.Export)
 	txn.Get("/:id", h.Transaction.GetByID)
 	txn.Put("/:id", h.Transaction.Update)
 	txn.Delete("/:id", h.Transaction.Delete)

@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"bytes"
+	"encoding/csv"
 	"expense-tracker/internal/api/middleware"
 	"expense-tracker/internal/models"
 	"expense-tracker/internal/services"
 	pkgerrors "expense-tracker/pkg/errors"
 	"expense-tracker/pkg/response"
 	"expense-tracker/pkg/validator"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -154,6 +157,63 @@ func (h *TransactionHandler) Delete(c *fiber.Ctx) error {
 		return response.InternalServerError(c, "failed to delete transaction")
 	}
 	return response.NoContent(c)
+}
+
+func (h *TransactionHandler) Export(c *fiber.Ctx) error {
+	userID := middleware.UserIDFromCtx(c)
+
+	filter := &models.TransactionFilter{
+		Type:    models.TransactionType(c.Query("type")),
+		Search:  c.Query("search"),
+		Page:    1,
+		PerPage: 10000,
+	}
+
+	if catIDStr := c.Query("categoryId"); catIDStr != "" {
+		if catID, err := uuid.Parse(catIDStr); err == nil {
+			filter.CategoryID = &catID
+		}
+	}
+	if from := c.Query("from"); from != "" {
+		if t, err := time.Parse("2006-01-02", from); err == nil {
+			filter.FromDate = &t
+		}
+	}
+	if to := c.Query("to"); to != "" {
+		if t, err := time.Parse("2006-01-02", to); err == nil {
+			filter.ToDate = &t
+		}
+	}
+
+	transactions, _, err := h.txSvc.List(c.Context(), userID, filter)
+	if err != nil {
+		return response.InternalServerError(c, "failed to export transactions")
+	}
+
+	filename := fmt.Sprintf("transactions-%s.csv", time.Now().Format("2006-01"))
+	c.Set("Content-Type", "text/csv")
+	c.Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	_ = w.Write([]string{"Date", "Description", "Category", "Type", "Amount", "Notes", "Recurrence"})
+	for _, t := range transactions {
+		notes := ""
+		if t.Notes != nil {
+			notes = *t.Notes
+		}
+		_ = w.Write([]string{
+			t.Date.Format("2006-01-02"),
+			t.Description,
+			t.Category.Name,
+			string(t.Type),
+			fmt.Sprintf("%.2f", t.Amount),
+			notes,
+			string(t.Recurrence),
+		})
+	}
+	w.Flush()
+	return c.SendString(buf.String())
 }
 
 func (h *TransactionHandler) Summary(c *fiber.Ctx) error {
