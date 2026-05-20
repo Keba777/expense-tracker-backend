@@ -15,15 +15,15 @@ const (
 )
 
 type Category struct {
-	ID        uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID    uuid.UUID    `gorm:"type:uuid;not null;index"                       json:"userId"`
-	Name      string       `gorm:"not null;size:100"                              json:"name"`
-	Icon      string       `gorm:"not null;size:10"                               json:"icon"`
-	Color     string       `gorm:"not null;size:7"                                json:"color"`
-	Type      CategoryType `gorm:"not null;size:10"                               json:"type"`
-	IsDefault bool         `gorm:"not null;default:false"                         json:"isDefault"`
-	CreatedAt time.Time    `                                                      json:"createdAt"`
-	UpdatedAt time.Time    `                                                      json:"updatedAt"`
+	ID        uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"                     json:"id"`
+	UserID    uuid.UUID    `gorm:"type:uuid;not null;index"                                           json:"userId"`
+	Name      string       `gorm:"not null;size:100"                                                  json:"name"`
+	Icon      string       `gorm:"not null;size:10"                                                   json:"icon"`
+	Color     string       `gorm:"not null;size:7"                                                    json:"color"`
+	Type      CategoryType `gorm:"not null;size:10;index;check:chk_cat_type,type IN ('income','expense')" json:"type"`
+	IsDefault bool         `gorm:"not null;default:false"                                             json:"isDefault"`
+	CreatedAt time.Time    `                                                                           json:"createdAt"`
+	UpdatedAt time.Time    `                                                                           json:"updatedAt"`
 
 	User User `gorm:"foreignKey:UserID" json:"-"`
 }

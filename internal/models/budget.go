@@ -16,16 +16,16 @@ const (
 )
 
 type Budget struct {
-	ID         uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID     uuid.UUID    `gorm:"type:uuid;not null;index"                       json:"userId"`
-	CategoryID uuid.UUID    `gorm:"type:uuid;not null"                             json:"categoryId"`
-	Name       string       `gorm:"not null;size:100"                              json:"name"`
-	Amount     float64      `gorm:"not null;check:amount > 0"                      json:"amount"`
-	Period     BudgetPeriod `gorm:"not null;size:10"                               json:"period"`
-	Year       int          `gorm:"not null"                                       json:"year"`
-	Month      *int         `                                                      json:"month,omitempty"`
-	CreatedAt  time.Time    `                                                      json:"createdAt"`
-	UpdatedAt  time.Time    `                                                      json:"updatedAt"`
+	ID         uuid.UUID    `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"                                      json:"id"`
+	UserID     uuid.UUID    `gorm:"type:uuid;not null;index"                                                            json:"userId"`
+	CategoryID uuid.UUID    `gorm:"type:uuid;not null"                                                                  json:"categoryId"`
+	Name       string       `gorm:"not null;size:100"                                                                   json:"name"`
+	Amount     float64      `gorm:"not null;check:chk_budget_amount,amount > 0"                                         json:"amount"`
+	Period     BudgetPeriod `gorm:"not null;size:10;check:chk_budget_period,period IN ('weekly','monthly','yearly')"    json:"period"`
+	Year       int          `gorm:"not null"                                                                            json:"year"`
+	Month      *int         `                                                                                           json:"month,omitempty"`
+	CreatedAt  time.Time    `                                                                                           json:"createdAt"`
+	UpdatedAt  time.Time    `                                                                                           json:"updatedAt"`
 
 	User     User     `gorm:"foreignKey:UserID"     json:"-"`
 	Category Category `gorm:"foreignKey:CategoryID" json:"category,omitempty"`

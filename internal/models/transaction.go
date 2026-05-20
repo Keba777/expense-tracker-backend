@@ -22,20 +22,20 @@ const (
 )
 
 type Transaction struct {
-	ID                 uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID             uuid.UUID       `gorm:"type:uuid;not null;index"                       json:"userId"`
-	CategoryID         uuid.UUID       `gorm:"type:uuid;not null"                             json:"categoryId"`
-	Type               TransactionType `gorm:"not null;size:10"                               json:"type"`
-	Amount             float64         `gorm:"not null;check:amount > 0"                      json:"amount"`
-	Description        string          `gorm:"not null;size:255"                              json:"description"`
-	Notes              *string         `gorm:"size:1000"                                      json:"notes,omitempty"`
-	Date               time.Time       `gorm:"not null;index"                                 json:"date"`
-	Recurrence         Recurrence      `gorm:"not null;default:'once';size:20"                json:"recurrence"`
-	RecurrenceEndDate  *time.Time      `                                                      json:"recurrenceEndDate,omitempty"`
-	Tags               pq.StringArray  `gorm:"type:text[]"                                    json:"tags"`
-	CreatedAt          time.Time       `                                                      json:"createdAt"`
-	UpdatedAt          time.Time       `                                                      json:"updatedAt"`
-	DeletedAt          gorm.DeletedAt  `gorm:"index"                                          json:"-"`
+	ID                uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"                              json:"id"`
+	UserID            uuid.UUID      `gorm:"type:uuid;not null;index;index:idx_tx_user_date"                             json:"userId"`
+	CategoryID        uuid.UUID      `gorm:"type:uuid;not null;index"                                                    json:"categoryId"`
+	Type              TransactionType `gorm:"not null;size:10;index;check:chk_tx_type,type IN ('income','expense')"       json:"type"`
+	Amount            float64        `gorm:"not null;check:chk_tx_amount,amount > 0"                                     json:"amount"`
+	Description       string         `gorm:"not null;size:255"                                                           json:"description"`
+	Notes             *string        `gorm:"size:1000"                                                                   json:"notes,omitempty"`
+	Date              time.Time      `gorm:"not null;index;index:idx_tx_user_date"                                       json:"date"`
+	Recurrence        Recurrence     `gorm:"not null;default:'once';size:20"                                             json:"recurrence"`
+	RecurrenceEndDate *time.Time     `                                                                                   json:"recurrenceEndDate,omitempty"`
+	Tags              pq.StringArray `gorm:"type:text[]"                                                                 json:"tags"`
+	CreatedAt         time.Time      `                                                                                   json:"createdAt"`
+	UpdatedAt         time.Time      `                                                                                   json:"updatedAt"`
+	DeletedAt         gorm.DeletedAt `gorm:"index"                                                                       json:"-"`
 
 	User     User     `gorm:"foreignKey:UserID"     json:"-"`
 	Category Category `gorm:"foreignKey:CategoryID" json:"category,omitempty"`

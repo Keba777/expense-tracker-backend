@@ -85,3 +85,26 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	}
 	return response.OK(c, user)
 }
+
+func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
+	userID := middleware.UserIDFromCtx(c)
+
+	var input services.UpdateProfileInput
+	if err := c.BodyParser(&input); err != nil {
+		return response.BadRequest(c, "invalid request body")
+	}
+	if err := h.validator.Validate(&input); err != nil {
+		return response.UnprocessableEntity(c, err.Error())
+	}
+
+	user, err := h.authSvc.UpdateProfile(c.Context(), userID, &input)
+	if err != nil {
+		switch {
+		case pkgerrors.Is(err, pkgerrors.ErrNotFound):
+			return response.NotFound(c, "user not found")
+		default:
+			return response.InternalServerError(c, "failed to update profile")
+		}
+	}
+	return response.OK(c, user)
+}

@@ -56,14 +56,19 @@ func main() {
 	sqlDB.SetMaxIdleConns(cfg.DB.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(cfg.DB.ConnMaxLifetime)
 
+	if err := db.Exec("CREATE EXTENSION IF NOT EXISTS \"pgcrypto\"").Error; err != nil {
+		log.Fatal().Err(err).Msg("failed to enable pgcrypto extension")
+	}
+
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Category{},
 		&models.Transaction{},
 		&models.Budget{},
 	); err != nil {
-		log.Fatal().Err(err).Msg("failed to run migrations")
+		log.Fatal().Err(err).Msg("failed to run auto-migrations")
 	}
+	log.Info().Msg("database migrations applied")
 
 	jwtManager := pkgjwt.NewManager(
 		cfg.JWT.AccessSecret,

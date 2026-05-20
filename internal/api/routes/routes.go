@@ -35,6 +35,9 @@ func Register(app *fiber.App, h *Handlers, jwtManager *jwt.Manager) {
 	auth.Post("/refresh", h.Auth.Refresh)
 	auth.Get("/me", middleware.Auth(jwtManager), h.Auth.Me)
 
+	users := api.Group("/users", middleware.Auth(jwtManager))
+	users.Put("/profile", h.Auth.UpdateProfile)
+
 	protected := api.Use(middleware.Auth(jwtManager))
 
 	txn := protected.Group("/transactions")

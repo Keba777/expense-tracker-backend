@@ -31,11 +31,19 @@ type AuthResponse struct {
 	Tokens *jwt.TokenPair       `json:"tokens"`
 }
 
+type UpdateProfileInput struct {
+	FirstName string `json:"firstName" validate:"required,min=1,max=100"`
+	LastName  string `json:"lastName"  validate:"required,min=1,max=100"`
+	Currency  string `json:"currency"  validate:"required,len=3"`
+	Timezone  string `json:"timezone"  validate:"required"`
+}
+
 type AuthService interface {
 	Register(ctx context.Context, input *RegisterInput) (*AuthResponse, error)
 	Login(ctx context.Context, input *LoginInput) (*AuthResponse, error)
 	RefreshTokens(ctx context.Context, refreshToken string) (*jwt.TokenPair, error)
 	GetUser(ctx context.Context, userID uuid.UUID) (*models.UserResponse, error)
+	UpdateProfile(ctx context.Context, userID uuid.UUID, input *UpdateProfileInput) (*models.UserResponse, error)
 }
 
 type authService struct {
@@ -148,6 +156,23 @@ func (s *authService) GetUser(ctx context.Context, userID uuid.UUID) (*models.Us
 	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, pkgerrors.ErrNotFound
+	}
+	return user.ToResponse(), nil
+}
+
+func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input *UpdateProfileInput) (*models.UserResponse, error) {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, pkgerrors.ErrNotFound
+	}
+
+	user.FirstName = input.FirstName
+	user.LastName = input.LastName
+	user.Currency = input.Currency
+	user.Timezone = input.Timezone
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, pkgerrors.ErrInternalServer
 	}
 	return user.ToResponse(), nil
 }
