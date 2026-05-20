@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -9,11 +11,11 @@ import (
 )
 
 type Config struct {
-	App      AppConfig
-	DB       DBConfig
-	Redis    RedisConfig
-	JWT      JWTConfig
-	CORS     CORSConfig
+	App       AppConfig
+	DB        DBConfig
+	Redis     RedisConfig
+	JWT       JWTConfig
+	CORS      CORSConfig
 	RateLimit RateLimitConfig
 }
 
@@ -65,11 +67,20 @@ func Load() (*Config, error) {
 
 	_ = viper.ReadInConfig()
 
+	// Railway injects PORT; fall back to APP_PORT for local dev
+	port := viper.GetInt("PORT")
+	if port == 0 {
+		port = viper.GetInt("APP_PORT")
+	}
+	if port == 0 {
+		port = 8080
+	}
+
 	cfg := &Config{
 		App: AppConfig{
 			Name: viper.GetString("APP_NAME"),
 			Env:  viper.GetString("APP_ENV"),
-			Port: viper.GetInt("APP_PORT"),
+			Port: port,
 		},
 		DB: DBConfig{
 			Host:            viper.GetString("DB_HOST"),
@@ -103,11 +114,67 @@ func Load() (*Config, error) {
 		},
 	}
 
+	// Railway provides DATABASE_URL — parse it if individual fields are empty
+	if cfg.DB.Host == "" {
+		if dbURL := viper.GetString("DATABASE_URL"); dbURL != "" {
+			if err := cfg.DB.parseURL(dbURL); err != nil {
+				return nil, fmt.Errorf("invalid DATABASE_URL: %w", err)
+			}
+		}
+	}
+
+	// Railway provides REDIS_URL — parse it if individual fields are empty
+	if cfg.Redis.Host == "" {
+		if redisURL := viper.GetString("REDIS_URL"); redisURL != "" {
+			if err := cfg.Redis.parseURL(redisURL); err != nil {
+				return nil, fmt.Errorf("invalid REDIS_URL: %w", err)
+			}
+		}
+	}
+
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
 	return cfg, nil
+}
+
+// parseURL parses a postgres:// or postgresql:// connection string.
+func (c *DBConfig) parseURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return err
+	}
+	c.Host = u.Hostname()
+	c.User = u.User.Username()
+	c.Password, _ = u.User.Password()
+	c.Name = strings.TrimPrefix(u.Path, "/")
+	if p := u.Port(); p != "" {
+		c.Port, _ = strconv.Atoi(p)
+	}
+	if ssl := u.Query().Get("sslmode"); ssl != "" {
+		c.SSLMode = ssl
+	} else {
+		c.SSLMode = "require" // Railway requires SSL
+	}
+	return nil
+}
+
+// parseURL parses a redis:// or rediss:// connection string.
+func (c *RedisConfig) parseURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return err
+	}
+	c.Host = u.Hostname()
+	if p := u.Port(); p != "" {
+		c.Port, _ = strconv.Atoi(p)
+	}
+	c.Password, _ = u.User.Password()
+	if db := strings.TrimPrefix(u.Path, "/"); db != "" {
+		c.DB, _ = strconv.Atoi(db)
+	}
+	return nil
 }
 
 func (c *Config) validate() error {
@@ -118,7 +185,7 @@ func (c *Config) validate() error {
 		return fmt.Errorf("JWT_REFRESH_SECRET is required")
 	}
 	if c.DB.Host == "" {
-		return fmt.Errorf("DB_HOST is required")
+		return fmt.Errorf("DB_HOST or DATABASE_URL is required")
 	}
 	return nil
 }
