@@ -15,6 +15,7 @@ type Handlers struct {
 	Transaction *handlers.TransactionHandler
 	Category    *handlers.CategoryHandler
 	Report      *handlers.ReportHandler
+	PDF         *handlers.PDFHandler
 }
 
 func Register(app *fiber.App, h *Handlers, jwtManager *jwt.Manager) {
@@ -60,4 +61,5 @@ func Register(app *fiber.App, h *Handlers, jwtManager *jwt.Manager) {
 	reports.Get("/weekly", h.Report.Weekly)
 	reports.Get("/trends", h.Report.Trends)
 	reports.Get("/category-breakdown", h.Report.CategoryBreakdown)
+	reports.Get("/pdf", h.PDF.GeneratePDF)
 }

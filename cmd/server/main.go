@@ -90,6 +90,7 @@ func main() {
 		Transaction: handlers.NewTransactionHandler(txSvc, v),
 		Category:    handlers.NewCategoryHandler(categoryRepo, v),
 		Report:      handlers.NewReportHandler(txSvc),
+		PDF:         handlers.NewPDFHandler(txSvc),
 	}
 
 	app := fiber.New(fiber.Config{
