@@ -17,6 +17,16 @@ type Config struct {
 	JWT       JWTConfig
 	CORS      CORSConfig
 	RateLimit RateLimitConfig
+	SMTP      SMTPConfig
+}
+
+type SMTPConfig struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	From     string
+	AppURL   string
 }
 
 type AppConfig struct {
@@ -111,6 +121,14 @@ func Load() (*Config, error) {
 		RateLimit: RateLimitConfig{
 			Max:           viper.GetInt("RATE_LIMIT_MAX"),
 			ExpirySeconds: viper.GetInt("RATE_LIMIT_EXPIRY_SECONDS"),
+		},
+		SMTP: SMTPConfig{
+			Host:     viper.GetString("SMTP_HOST"),
+			Port:     viper.GetInt("SMTP_PORT"),
+			Username: viper.GetString("SMTP_USERNAME"),
+			Password: viper.GetString("SMTP_PASSWORD"),
+			From:     viper.GetString("SMTP_FROM"),
+			AppURL:   viper.GetString("APP_URL"),
 		},
 	}
 

@@ -61,6 +61,42 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	return response.OK(c, result)
 }
 
+func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
+	var input services.ForgotPasswordInput
+	if err := c.BodyParser(&input); err != nil {
+		return response.BadRequest(c, "invalid request body")
+	}
+	if err := h.validator.Validate(&input); err != nil {
+		return response.UnprocessableEntity(c, err.Error())
+	}
+
+	// Always return 200 — never reveal whether the account exists
+	_ = h.authSvc.ForgotPassword(c.Context(), &input)
+	return response.OK(c, fiber.Map{"message": "if an account exists, a reset link has been sent"})
+}
+
+func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
+	var input services.ResetPasswordInput
+	if err := c.BodyParser(&input); err != nil {
+		return response.BadRequest(c, "invalid request body")
+	}
+	if err := h.validator.Validate(&input); err != nil {
+		return response.UnprocessableEntity(c, err.Error())
+	}
+
+	if err := h.authSvc.ResetPassword(c.Context(), &input); err != nil {
+		switch {
+		case pkgerrors.Is(err, pkgerrors.ErrTokenExpired):
+			return response.UnprocessableEntity(c, "reset link has expired, please request a new one")
+		case pkgerrors.Is(err, pkgerrors.ErrTokenInvalid):
+			return response.UnprocessableEntity(c, "invalid or expired reset link")
+		default:
+			return response.InternalServerError(c, "failed to reset password")
+		}
+	}
+	return response.OK(c, fiber.Map{"message": "password updated successfully"})
+}
+
 func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 	var body struct {
 		RefreshToken string `json:"refreshToken" validate:"required"`

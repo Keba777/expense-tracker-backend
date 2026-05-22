@@ -2,12 +2,16 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"strings"
+	"time"
 
 	"expense-tracker/internal/models"
 	"expense-tracker/internal/repository"
 	pkgerrors "expense-tracker/pkg/errors"
 	"expense-tracker/pkg/jwt"
+	"expense-tracker/pkg/mailer"
 	"expense-tracker/pkg/password"
 
 	"github.com/google/uuid"
@@ -29,6 +33,15 @@ type LoginInput struct {
 	Password   string `json:"password"   validate:"required"`
 }
 
+type ForgotPasswordInput struct {
+	Identifier string `json:"identifier" validate:"required"`
+}
+
+type ResetPasswordInput struct {
+	Token    string `json:"token"    validate:"required"`
+	Password string `json:"password" validate:"required,min=8"`
+}
+
 type AuthResponse struct {
 	User   *models.UserResponse `json:"user"`
 	Tokens *jwt.TokenPair       `json:"tokens"`
@@ -47,23 +60,34 @@ type AuthService interface {
 	RefreshTokens(ctx context.Context, refreshToken string) (*jwt.TokenPair, error)
 	GetUser(ctx context.Context, userID uuid.UUID) (*models.UserResponse, error)
 	UpdateProfile(ctx context.Context, userID uuid.UUID, input *UpdateProfileInput) (*models.UserResponse, error)
+	ForgotPassword(ctx context.Context, input *ForgotPasswordInput) error
+	ResetPassword(ctx context.Context, input *ResetPasswordInput) error
 }
 
 type authService struct {
 	userRepo     repository.UserRepository
 	categoryRepo repository.CategoryRepository
+	resetRepo    repository.PasswordResetRepository
 	jwtManager   *jwt.Manager
+	mailer       *mailer.Mailer
+	appURL       string
 }
 
 func NewAuthService(
 	userRepo repository.UserRepository,
 	categoryRepo repository.CategoryRepository,
+	resetRepo repository.PasswordResetRepository,
 	jwtManager *jwt.Manager,
+	m *mailer.Mailer,
+	appURL string,
 ) AuthService {
 	return &authService{
 		userRepo:     userRepo,
 		categoryRepo: categoryRepo,
+		resetRepo:    resetRepo,
 		jwtManager:   jwtManager,
+		mailer:       m,
+		appURL:       appURL,
 	}
 }
 
@@ -164,6 +188,86 @@ func (s *authService) Login(ctx context.Context, input *LoginInput) (*AuthRespon
 	return &AuthResponse{User: user.ToResponse(), Tokens: tokens}, nil
 }
 
+func (s *authService) ForgotPassword(ctx context.Context, input *ForgotPasswordInput) error {
+	var user *models.User
+	var err error
+
+	if strings.Contains(input.Identifier, "@") {
+		user, err = s.userRepo.FindByEmail(ctx, input.Identifier)
+	} else {
+		user, err = s.userRepo.FindByPhone(ctx, input.Identifier)
+	}
+	// Always return nil to prevent user enumeration
+	if err != nil || user == nil {
+		return nil
+	}
+	// Phone-only users can't receive an email reset link
+	if user.Email == nil {
+		return nil
+	}
+
+	// Invalidate any existing tokens for this user
+	_ = s.resetRepo.DeleteByUserID(ctx, user.ID)
+
+	token, err := generateSecureToken()
+	if err != nil {
+		return pkgerrors.ErrInternalServer
+	}
+
+	resetToken := &models.PasswordResetToken{
+		UserID:    user.ID,
+		Token:     token,
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	}
+	if err := s.resetRepo.Create(ctx, resetToken); err != nil {
+		return pkgerrors.ErrInternalServer
+	}
+
+	appURL := s.appURL
+	if appURL == "" {
+		appURL = "http://localhost:3000"
+	}
+	resetURL := appURL + "/reset-password?token=" + token
+
+	// Fire-and-forget — don't fail the request if email delivery fails
+	go func() {
+		_ = s.mailer.SendPasswordReset(*user.Email, resetURL)
+	}()
+
+	return nil
+}
+
+func (s *authService) ResetPassword(ctx context.Context, input *ResetPasswordInput) error {
+	resetToken, err := s.resetRepo.FindByToken(ctx, input.Token)
+	if err != nil {
+		return pkgerrors.ErrTokenInvalid
+	}
+	if resetToken.IsExpired() {
+		_ = s.resetRepo.Delete(ctx, resetToken.ID)
+		return pkgerrors.ErrTokenExpired
+	}
+
+	user, err := s.userRepo.FindByID(ctx, resetToken.UserID)
+	if err != nil {
+		return pkgerrors.ErrNotFound
+	}
+
+	hash, err := password.Hash(input.Password)
+	if err != nil {
+		return pkgerrors.ErrInternalServer
+	}
+	user.PasswordHash = hash
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return pkgerrors.ErrInternalServer
+	}
+
+	// Invalidate the token after use
+	_ = s.resetRepo.Delete(ctx, resetToken.ID)
+
+	return nil
+}
+
 func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*jwt.TokenPair, error) {
 	claims, err := s.jwtManager.ValidateRefresh(refreshToken)
 	if err != nil {
@@ -206,6 +310,14 @@ func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input
 		return nil, pkgerrors.ErrInternalServer
 	}
 	return user.ToResponse(), nil
+}
+
+func generateSecureToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // stdErrors wraps stdlib errors.Is to avoid naming conflict with the pkgerrors alias.

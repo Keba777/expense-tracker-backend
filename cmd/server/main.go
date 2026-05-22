@@ -9,6 +9,7 @@ import (
 	"expense-tracker/internal/repository"
 	"expense-tracker/internal/services"
 	pkgjwt "expense-tracker/pkg/jwt"
+	"expense-tracker/pkg/mailer"
 	"expense-tracker/pkg/validator"
 	"fmt"
 	"os"
@@ -65,6 +66,7 @@ func main() {
 		&models.Category{},
 		&models.Transaction{},
 		&models.Budget{},
+		&models.PasswordResetToken{},
 	); err != nil {
 		log.Fatal().Err(err).Msg("failed to run auto-migrations")
 	}
@@ -81,8 +83,17 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	categoryRepo := repository.NewCategoryRepository(db)
 	txRepo := repository.NewTransactionRepository(db)
+	resetRepo := repository.NewPasswordResetRepository(db)
 
-	authSvc := services.NewAuthService(userRepo, categoryRepo, jwtManager)
+	m := mailer.New(
+		cfg.SMTP.Host,
+		cfg.SMTP.Port,
+		cfg.SMTP.Username,
+		cfg.SMTP.Password,
+		cfg.SMTP.From,
+	)
+
+	authSvc := services.NewAuthService(userRepo, categoryRepo, resetRepo, jwtManager, m, cfg.SMTP.AppURL)
 	txSvc := services.NewTransactionService(txRepo)
 
 	h := &routes.Handlers{
