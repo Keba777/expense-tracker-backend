@@ -42,6 +42,11 @@ type ResetPasswordInput struct {
 	Password string `json:"password" validate:"required,min=8"`
 }
 
+type ChangePasswordInput struct {
+	CurrentPassword string `json:"currentPassword" validate:"required"`
+	NewPassword     string `json:"newPassword"     validate:"required,min=8"`
+}
+
 type AuthResponse struct {
 	User   *models.UserResponse `json:"user"`
 	Tokens *jwt.TokenPair       `json:"tokens"`
@@ -62,6 +67,7 @@ type AuthService interface {
 	UpdateProfile(ctx context.Context, userID uuid.UUID, input *UpdateProfileInput) (*models.UserResponse, error)
 	ForgotPassword(ctx context.Context, input *ForgotPasswordInput) error
 	ResetPassword(ctx context.Context, input *ResetPasswordInput) error
+	ChangePassword(ctx context.Context, userID uuid.UUID, input *ChangePasswordInput) error
 }
 
 type authService struct {
@@ -310,6 +316,28 @@ func (s *authService) UpdateProfile(ctx context.Context, userID uuid.UUID, input
 		return nil, pkgerrors.ErrInternalServer
 	}
 	return user.ToResponse(), nil
+}
+
+func (s *authService) ChangePassword(ctx context.Context, userID uuid.UUID, input *ChangePasswordInput) error {
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return pkgerrors.ErrNotFound
+	}
+
+	if !password.Verify(input.CurrentPassword, user.PasswordHash) {
+		return pkgerrors.ErrInvalidCredentials
+	}
+
+	hash, err := password.Hash(input.NewPassword)
+	if err != nil {
+		return pkgerrors.ErrInternalServer
+	}
+	user.PasswordHash = hash
+
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return pkgerrors.ErrInternalServer
+	}
+	return nil
 }
 
 func generateSecureToken() (string, error) {

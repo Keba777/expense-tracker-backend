@@ -40,6 +40,7 @@ func Register(app *fiber.App, h *Handlers, jwtManager *jwt.Manager) {
 
 	users := api.Group("/users", middleware.Auth(jwtManager))
 	users.Put("/profile", h.Auth.UpdateProfile)
+	users.Put("/password", h.Auth.ChangePassword)
 
 	protected := api.Use(middleware.Auth(jwtManager))
 

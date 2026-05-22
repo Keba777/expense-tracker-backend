@@ -124,6 +124,28 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	return response.OK(c, user)
 }
 
+func (h *AuthHandler) ChangePassword(c *fiber.Ctx) error {
+	userID := middleware.UserIDFromCtx(c)
+
+	var input services.ChangePasswordInput
+	if err := c.BodyParser(&input); err != nil {
+		return response.BadRequest(c, "invalid request body")
+	}
+	if err := h.validator.Validate(&input); err != nil {
+		return response.UnprocessableEntity(c, err.Error())
+	}
+
+	if err := h.authSvc.ChangePassword(c.Context(), userID, &input); err != nil {
+		switch {
+		case pkgerrors.Is(err, pkgerrors.ErrInvalidCredentials):
+			return response.UnprocessableEntity(c, "current password is incorrect")
+		default:
+			return response.InternalServerError(c, "failed to change password")
+		}
+	}
+	return response.OK(c, fiber.Map{"message": "password changed successfully"})
+}
+
 func (h *AuthHandler) UpdateProfile(c *fiber.Ctx) error {
 	userID := middleware.UserIDFromCtx(c)
 
