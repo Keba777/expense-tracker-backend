@@ -12,6 +12,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user *models.User) error
 	FindByID(ctx context.Context, id uuid.UUID) (*models.User, error)
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
+	FindByPhone(ctx context.Context, phone string) (*models.User, error)
 	Update(ctx context.Context, user *models.User) error
 	SoftDelete(ctx context.Context, id uuid.UUID) error
 }
@@ -39,6 +40,14 @@ func (r *userRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.Us
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	if err := r.db.WithContext(ctx).Where("email = ? AND is_active = true", email).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *userRepository) FindByPhone(ctx context.Context, phone string) (*models.User, error) {
+	var user models.User
+	if err := r.db.WithContext(ctx).Where("phone = ? AND is_active = true", phone).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil

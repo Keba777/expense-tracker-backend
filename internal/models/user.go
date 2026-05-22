@@ -17,7 +17,8 @@ const (
 
 type User struct {
 	ID              uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	Email           string         `gorm:"uniqueIndex;not null;size:255"                  json:"email"`
+	Email           *string        `gorm:"uniqueIndex;size:255"                           json:"email,omitempty"`
+	Phone           *string        `gorm:"uniqueIndex;size:20"                            json:"phone,omitempty"`
 	PasswordHash    string         `gorm:"not null"                                       json:"-"`
 	FirstName       string         `gorm:"not null;size:100"                              json:"firstName"`
 	LastName        string         `gorm:"not null;size:100"                              json:"lastName"`
@@ -27,17 +28,29 @@ type User struct {
 	Plan            Plan           `gorm:"not null;default:'free';size:20"                json:"plan"`
 	IsActive        bool           `gorm:"not null;default:true"                          json:"isActive"`
 	EmailVerifiedAt *time.Time     `                                                      json:"emailVerifiedAt,omitempty"`
+	PhoneVerifiedAt *time.Time     `                                                      json:"phoneVerifiedAt,omitempty"`
 	CreatedAt       time.Time      `                                                      json:"createdAt"`
 	UpdatedAt       time.Time      `                                                      json:"updatedAt"`
 	DeletedAt       gorm.DeletedAt `gorm:"index"                                          json:"-"`
 
-	Categories   []Category   `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
+	Categories   []Category    `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 	Transactions []Transaction `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
-	Budgets      []Budget     `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
+	Budgets      []Budget      `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE" json:"-"`
 }
 
 func (u *User) FullName() string {
 	return u.FirstName + " " + u.LastName
+}
+
+// Identifier returns the primary login identifier (email preferred, then phone).
+func (u *User) Identifier() string {
+	if u.Email != nil && *u.Email != "" {
+		return *u.Email
+	}
+	if u.Phone != nil {
+		return *u.Phone
+	}
+	return ""
 }
 
 func (u *User) BeforeCreate(tx *gorm.DB) error {
@@ -49,7 +62,8 @@ func (u *User) BeforeCreate(tx *gorm.DB) error {
 
 type UserResponse struct {
 	ID              uuid.UUID  `json:"id"`
-	Email           string     `json:"email"`
+	Email           *string    `json:"email,omitempty"`
+	Phone           *string    `json:"phone,omitempty"`
 	FirstName       string     `json:"firstName"`
 	LastName        string     `json:"lastName"`
 	Currency        string     `json:"currency"`
@@ -58,6 +72,7 @@ type UserResponse struct {
 	Plan            Plan       `json:"plan"`
 	IsActive        bool       `json:"isActive"`
 	EmailVerifiedAt *time.Time `json:"emailVerifiedAt,omitempty"`
+	PhoneVerifiedAt *time.Time `json:"phoneVerifiedAt,omitempty"`
 	CreatedAt       time.Time  `json:"createdAt"`
 }
 
@@ -65,6 +80,7 @@ func (u *User) ToResponse() *UserResponse {
 	return &UserResponse{
 		ID:              u.ID,
 		Email:           u.Email,
+		Phone:           u.Phone,
 		FirstName:       u.FirstName,
 		LastName:        u.LastName,
 		Currency:        u.Currency,
@@ -73,6 +89,7 @@ func (u *User) ToResponse() *UserResponse {
 		Plan:            u.Plan,
 		IsActive:        u.IsActive,
 		EmailVerifiedAt: u.EmailVerifiedAt,
+		PhoneVerifiedAt: u.PhoneVerifiedAt,
 		CreatedAt:       u.CreatedAt,
 	}
 }

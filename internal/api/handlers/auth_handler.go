@@ -31,8 +31,10 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	result, err := h.authSvc.Register(c.Context(), &input)
 	if err != nil {
 		switch {
+		case pkgerrors.Is(err, pkgerrors.ErrValidation):
+			return response.UnprocessableEntity(c, "provide at least an email or phone number")
 		case pkgerrors.Is(err, pkgerrors.ErrConflict):
-			return response.Conflict(c, "email already in use")
+			return response.Conflict(c, "email or phone number already registered")
 		default:
 			return response.InternalServerError(c, "registration failed")
 		}
@@ -52,7 +54,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	result, err := h.authSvc.Login(c.Context(), &input)
 	if err != nil {
 		if pkgerrors.Is(err, pkgerrors.ErrInvalidCredentials) {
-			return response.Unauthorized(c, "invalid email or password")
+			return response.Unauthorized(c, "invalid email, phone, or password")
 		}
 		return response.InternalServerError(c, "login failed")
 	}

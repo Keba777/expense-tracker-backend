@@ -7,11 +7,12 @@ var (
 	ErrUnauthorized       = errors.New("unauthorized")
 	ErrForbidden          = errors.New("forbidden")
 	ErrConflict           = errors.New("resource already exists")
-	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrTokenExpired       = errors.New("token has expired")
 	ErrTokenInvalid       = errors.New("token is invalid")
 	ErrInvalidInput       = errors.New("invalid input")
 	ErrInternalServer     = errors.New("internal server error")
+	ErrValidation         = errors.New("validation error")
 )
 
 type AppError struct {
