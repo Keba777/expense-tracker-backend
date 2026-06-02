@@ -22,10 +22,11 @@ type TransactionRepository interface {
 }
 
 type SummaryResult struct {
-	TotalIncome  float64 `json:"totalIncome"`
-	TotalExpense float64 `json:"totalExpense"`
-	NetBalance   float64 `json:"netBalance"`
-	SavingsRate  float64 `json:"savingsRate"`
+	TotalIncome       float64 `json:"totalIncome"`
+	TotalExpense      float64 `json:"totalExpense"`
+	NetBalance        float64 `json:"netBalance"`
+	AllTimeNetBalance float64 `json:"allTimeNetBalance"`
+	SavingsRate       float64 `json:"savingsRate"`
 }
 
 type DailyTotal struct {
@@ -149,14 +150,35 @@ func (r *transactionRepository) Summary(ctx context.Context, userID uuid.UUID, f
 	if result.TotalIncome > 0 {
 		result.SavingsRate = (result.NetBalance / result.TotalIncome) * 100
 	}
+
+	var allTimeRows []row
+	err = r.db.WithContext(ctx).
+		Model(&models.Transaction{}).
+		Select("type, COALESCE(SUM(amount), 0) as total").
+		Where("user_id = ?", userID).
+		Group("type").
+		Scan(&allTimeRows).Error
+	if err != nil {
+		return nil, err
+	}
+	var allTimeIncome, allTimeExpense float64
+	for _, row := range allTimeRows {
+		if row.Type == models.TransactionIncome {
+			allTimeIncome = row.Total
+		} else {
+			allTimeExpense = row.Total
+		}
+	}
+	result.AllTimeNetBalance = allTimeIncome - allTimeExpense
+
 	return result, nil
 }
 
 func (r *transactionRepository) DailyTotals(ctx context.Context, userID uuid.UUID, from, to time.Time) ([]DailyTotal, error) {
 	var rows []struct {
-		Date    time.Time
-		Type    models.TransactionType
-		Total   float64
+		Date  time.Time
+		Type  models.TransactionType
+		Total float64
 	}
 	err := r.db.WithContext(ctx).
 		Model(&models.Transaction{}).
@@ -224,10 +246,10 @@ func (r *transactionRepository) CategoryBreakdown(ctx context.Context, userID uu
 
 func (r *transactionRepository) MonthlyTrends(ctx context.Context, userID uuid.UUID, months int) ([]MonthlyTrend, error) {
 	var rows []struct {
-		Year    int
-		Month   int
-		Type    models.TransactionType
-		Total   float64
+		Year  int
+		Month int
+		Type  models.TransactionType
+		Total float64
 	}
 	err := r.db.WithContext(ctx).
 		Model(&models.Transaction{}).
