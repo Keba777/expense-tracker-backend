@@ -16,6 +16,8 @@ type Handlers struct {
 	Category    *handlers.CategoryHandler
 	Report      *handlers.ReportHandler
 	PDF         *handlers.PDFHandler
+	Person      *handlers.PersonHandler
+	Loan        *handlers.LoanHandler
 }
 
 func Register(app *fiber.App, h *Handlers, jwtManager *jwt.Manager) {
@@ -65,4 +67,21 @@ func Register(app *fiber.App, h *Handlers, jwtManager *jwt.Manager) {
 	reports.Get("/trends", h.Report.Trends)
 	reports.Get("/category-breakdown", h.Report.CategoryBreakdown)
 	reports.Get("/pdf", h.PDF.GeneratePDF)
+
+	people := protected.Group("/people")
+	people.Get("/", h.Person.List)
+	people.Post("/", h.Person.Create)
+	people.Get("/:id", h.Person.GetByID)
+	people.Put("/:id", h.Person.Update)
+	people.Delete("/:id", h.Person.Delete)
+
+	loans := protected.Group("/loans")
+	loans.Get("/", h.Loan.List)
+	loans.Post("/", h.Loan.Create)
+	loans.Get("/:id", h.Loan.GetByID)
+	loans.Put("/:id", h.Loan.Update)
+	loans.Delete("/:id", h.Loan.Delete)
+	loans.Get("/:id/payments", h.Loan.ListPayments)
+	loans.Post("/:id/payments", h.Loan.AddPayment)
+	loans.Delete("/:id/payments/:paymentId", h.Loan.DeletePayment)
 }

@@ -67,6 +67,9 @@ func main() {
 		&models.Transaction{},
 		&models.Budget{},
 		&models.PasswordResetToken{},
+		&models.Person{},
+		&models.Loan{},
+		&models.LoanPayment{},
 	); err != nil {
 		log.Fatal().Err(err).Msg("failed to run auto-migrations")
 	}
@@ -84,6 +87,9 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	txRepo := repository.NewTransactionRepository(db)
 	resetRepo := repository.NewPasswordResetRepository(db)
+	personRepo := repository.NewPersonRepository(db)
+	loanRepo := repository.NewLoanRepository(db)
+	loanPaymentRepo := repository.NewLoanPaymentRepository(db)
 
 	m := mailer.New(
 		cfg.SMTP.Host,
@@ -95,6 +101,7 @@ func main() {
 
 	authSvc := services.NewAuthService(userRepo, categoryRepo, resetRepo, jwtManager, m, cfg.SMTP.AppURL)
 	txSvc := services.NewTransactionService(txRepo)
+	loanSvc := services.NewLoanService(loanRepo, loanPaymentRepo, personRepo)
 
 	h := &routes.Handlers{
 		Auth:        handlers.NewAuthHandler(authSvc, v),
@@ -102,6 +109,8 @@ func main() {
 		Category:    handlers.NewCategoryHandler(categoryRepo, v),
 		Report:      handlers.NewReportHandler(txSvc),
 		PDF:         handlers.NewPDFHandler(txSvc),
+		Person:      handlers.NewPersonHandler(personRepo, loanSvc, v),
+		Loan:        handlers.NewLoanHandler(loanSvc, v),
 	}
 
 	app := fiber.New(fiber.Config{
