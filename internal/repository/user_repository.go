@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"expense-tracker/internal/models"
+	"strings"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -39,7 +40,7 @@ func (r *userRepository) FindByID(ctx context.Context, id uuid.UUID) (*models.Us
 
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
-	if err := r.db.WithContext(ctx).Where("email = ? AND is_active = true", email).First(&user).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("LOWER(email) = LOWER(?) AND is_active = true", strings.TrimSpace(email)).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
