@@ -92,7 +92,7 @@ func (h *PDFHandler) GeneratePDF(c *fiber.Ctx) error {
 		return response.InternalServerError(c, "failed to fetch breakdown")
 	}
 
-	filter := &models.TransactionFilter{Page: 1, PerPage: 500}
+	filter := &models.TransactionFilter{Page: 1, PerPage: 500, BaseOnly: true}
 	filter.FromDate = &from
 	filter.ToDate = &to
 	transactions, _, err := h.txSvc.List(c.Context(), userID, filter)

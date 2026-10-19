@@ -87,6 +87,12 @@ func (r *transactionRepository) List(ctx context.Context, userID uuid.UUID, f *m
 	if f.CategoryID != nil {
 		q = q.Where("category_id = ?", *f.CategoryID)
 	}
+	if f.Currency != "" {
+		q = q.Where("currency = ?", f.Currency)
+	}
+	if f.BaseOnly {
+		q = q.Where("currency = ''")
+	}
 	if f.FromDate != nil {
 		q = q.Where("date >= ?", *f.FromDate)
 	}
@@ -131,7 +137,7 @@ func (r *transactionRepository) Summary(ctx context.Context, userID uuid.UUID, f
 	err := r.db.WithContext(ctx).
 		Model(&models.Transaction{}).
 		Select("type, COALESCE(SUM(amount), 0) as total").
-		Where("user_id = ? AND date BETWEEN ? AND ?", userID, from, to).
+		Where("user_id = ? AND currency = '' AND date BETWEEN ? AND ?", userID, from, to).
 		Group("type").
 		Scan(&rows).Error
 	if err != nil {
@@ -155,7 +161,7 @@ func (r *transactionRepository) Summary(ctx context.Context, userID uuid.UUID, f
 	err = r.db.WithContext(ctx).
 		Model(&models.Transaction{}).
 		Select("type, COALESCE(SUM(amount), 0) as total").
-		Where("user_id = ?", userID).
+		Where("user_id = ? AND currency = ''", userID).
 		Group("type").
 		Scan(&allTimeRows).Error
 	if err != nil {
@@ -183,7 +189,7 @@ func (r *transactionRepository) DailyTotals(ctx context.Context, userID uuid.UUI
 	err := r.db.WithContext(ctx).
 		Model(&models.Transaction{}).
 		Select("DATE(date) as date, type, COALESCE(SUM(amount), 0) as total").
-		Where("user_id = ? AND date BETWEEN ? AND ?", userID, from, to).
+		Where("user_id = ? AND currency = '' AND date BETWEEN ? AND ?", userID, from, to).
 		Group("DATE(date), type").
 		Order("DATE(date)").
 		Scan(&rows).Error
@@ -224,7 +230,7 @@ func (r *transactionRepository) CategoryBreakdown(ctx context.Context, userID uu
 			COUNT(*) as count
 		`).
 		Joins("JOIN categories ON categories.id = transactions.category_id").
-		Where("transactions.user_id = ? AND transactions.type = ? AND transactions.date BETWEEN ? AND ?", userID, txType, from, to).
+		Where("transactions.user_id = ? AND transactions.currency = '' AND transactions.type = ? AND transactions.date BETWEEN ? AND ?", userID, txType, from, to).
 		Group("transactions.category_id, categories.name, categories.icon, categories.color").
 		Order("total DESC").
 		Scan(&rows).Error
@@ -254,7 +260,7 @@ func (r *transactionRepository) MonthlyTrends(ctx context.Context, userID uuid.U
 	err := r.db.WithContext(ctx).
 		Model(&models.Transaction{}).
 		Select("EXTRACT(YEAR FROM date)::int as year, EXTRACT(MONTH FROM date)::int as month, type, COALESCE(SUM(amount), 0) as total").
-		Where("user_id = ? AND date >= NOW() - INTERVAL '1 month' * ?", userID, months).
+		Where("user_id = ? AND currency = '' AND date >= NOW() - INTERVAL '1 month' * ?", userID, months).
 		Group("year, month, type").
 		Order("year, month").
 		Scan(&rows).Error

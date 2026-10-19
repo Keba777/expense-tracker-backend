@@ -11,6 +11,7 @@ import (
 	"expense-tracker/pkg/validator"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -54,9 +55,10 @@ func (h *TransactionHandler) List(c *fiber.Ctx) error {
 	perPage, _ := strconv.Atoi(c.Query("perPage", "20"))
 
 	filter := &models.TransactionFilter{
-		Type:    models.TransactionType(c.Query("type")),
-		Search:  c.Query("search"),
-		Page:    page,
+		Type:     models.TransactionType(c.Query("type")),
+		Search:   c.Query("search"),
+		Currency: strings.ToUpper(c.Query("currency")),
+		Page:     page,
 		PerPage: perPage,
 	}
 
@@ -196,7 +198,7 @@ func (h *TransactionHandler) Export(c *fiber.Ctx) error {
 
 	var buf bytes.Buffer
 	w := csv.NewWriter(&buf)
-	_ = w.Write([]string{"Date", "Description", "Category", "Type", "Amount", "Notes", "Recurrence"})
+	_ = w.Write([]string{"Date", "Description", "Category", "Type", "Amount", "Notes", "Recurrence", "Currency"})
 	for _, t := range transactions {
 		notes := ""
 		if t.Notes != nil {
@@ -210,6 +212,7 @@ func (h *TransactionHandler) Export(c *fiber.Ctx) error {
 			fmt.Sprintf("%.2f", t.Amount),
 			notes,
 			string(t.Recurrence),
+			t.Currency,
 		})
 	}
 	w.Flush()

@@ -5,6 +5,7 @@ import (
 	"expense-tracker/internal/models"
 	"expense-tracker/internal/repository"
 	pkgerrors "expense-tracker/pkg/errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,6 +16,7 @@ type CreateTransactionInput struct {
 	CategoryID        string     `json:"categoryId"        validate:"required,uuid"`
 	Type              string     `json:"type"              validate:"required,oneof=income expense"`
 	Amount            float64    `json:"amount"            validate:"required,gt=0"`
+	Currency          string     `json:"currency"          validate:"omitempty,len=3,alpha"` // omit for the base currency
 	Description       string     `json:"description"       validate:"required,min=1,max=255"`
 	Notes             *string    `json:"notes"             validate:"omitempty,max=1000"`
 	Date              string     `json:"date"              validate:"required"`
@@ -27,6 +29,7 @@ type UpdateTransactionInput struct {
 	CategoryID        *string    `json:"categoryId"        validate:"omitempty,uuid"`
 	Type              *string    `json:"type"              validate:"omitempty,oneof=income expense"`
 	Amount            *float64   `json:"amount"            validate:"omitempty,gt=0"`
+	Currency          *string    `json:"currency"          validate:"omitempty,len=3,alpha"`
 	Description       *string    `json:"description"       validate:"omitempty,min=1,max=255"`
 	Notes             *string    `json:"notes"             validate:"omitempty,max=1000"`
 	Date              *string    `json:"date"              validate:"omitempty"`
@@ -76,6 +79,7 @@ func (s *transactionService) Create(ctx context.Context, userID uuid.UUID, input
 		CategoryID:  catID,
 		Type:        models.TransactionType(input.Type),
 		Amount:      input.Amount,
+		Currency:    strings.ToUpper(input.Currency),
 		Description: input.Description,
 		Notes:       input.Notes,
 		Date:        date,
@@ -131,6 +135,9 @@ func (s *transactionService) Update(ctx context.Context, id, userID uuid.UUID, i
 	}
 	if input.Amount != nil {
 		t.Amount = *input.Amount
+	}
+	if input.Currency != nil {
+		t.Currency = strings.ToUpper(*input.Currency)
 	}
 	if input.Description != nil {
 		t.Description = *input.Description

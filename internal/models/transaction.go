@@ -27,6 +27,7 @@ type Transaction struct {
 	CategoryID        uuid.UUID      `gorm:"type:uuid;not null;index"                                                    json:"categoryId"`
 	Type              TransactionType `gorm:"not null;size:10;index;check:chk_tx_type,type IN ('income','expense')"       json:"type"`
 	Amount            float64        `gorm:"not null;check:chk_tx_amount,amount > 0"                                     json:"amount"`
+	Currency          string         `gorm:"not null;default:'';size:3"                                                  json:"currency"` // "" = user's base currency; never converted
 	Description       string         `gorm:"not null;size:255"                                                           json:"description"`
 	Notes             *string        `gorm:"size:1000"                                                                   json:"notes,omitempty"`
 	Date              time.Time      `gorm:"not null;index;index:idx_tx_user_date"                                       json:"date"`
@@ -58,6 +59,8 @@ type TransactionWithCategory struct {
 type TransactionFilter struct {
 	Type       TransactionType
 	CategoryID *uuid.UUID
+	Currency   string // exact match (e.g. "USD"); empty = any currency
+	BaseOnly   bool   // only rows in the user's base currency (currency = "")
 	FromDate   *time.Time
 	ToDate     *time.Time
 	Search     string
