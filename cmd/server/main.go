@@ -99,7 +99,7 @@ func main() {
 		cfg.SMTP.From,
 	)
 
-	authSvc := services.NewAuthService(userRepo, categoryRepo, resetRepo, jwtManager, m, cfg.SMTP.AppURL)
+	authSvc := services.NewAuthService(userRepo, categoryRepo, resetRepo, jwtManager, m, cfg.SMTP.AppURL, cfg.Telegram.BotToken)
 	txSvc := services.NewTransactionService(txRepo)
 	loanSvc := services.NewLoanService(loanRepo, loanPaymentRepo, personRepo)
 

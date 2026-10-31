@@ -36,6 +36,8 @@ func Register(app *fiber.App, h *Handlers, jwtManager *jwt.Manager) {
 	auth.Post("/register", h.Auth.Register)
 	auth.Post("/login", h.Auth.Login)
 	auth.Post("/refresh", h.Auth.Refresh)
+	auth.Post("/telegram", h.Auth.TelegramLogin)
+	auth.Post("/telegram/link", h.Auth.TelegramLink)
 	auth.Post("/forgot-password", h.Auth.ForgotPassword)
 	auth.Post("/reset-password", h.Auth.ResetPassword)
 	auth.Get("/me", middleware.Auth(jwtManager), h.Auth.Me)

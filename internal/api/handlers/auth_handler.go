@@ -61,6 +61,53 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	return response.OK(c, result)
 }
 
+func (h *AuthHandler) TelegramLogin(c *fiber.Ctx) error {
+	var input struct {
+		InitData string `json:"initData"`
+	}
+	if err := c.BodyParser(&input); err != nil || input.InitData == "" {
+		return response.BadRequest(c, "invalid request body")
+	}
+
+	result, err := h.authSvc.TelegramLogin(c.Context(), input.InitData)
+	if err != nil {
+		switch {
+		case pkgerrors.Is(err, pkgerrors.ErrUnauthorized):
+			return response.Unauthorized(c, "invalid telegram data")
+		case pkgerrors.Is(err, pkgerrors.ErrNotFound):
+			return response.NotFound(c, "telegram account not linked")
+		default:
+			return response.InternalServerError(c, "login failed")
+		}
+	}
+	return response.OK(c, result)
+}
+
+func (h *AuthHandler) TelegramLink(c *fiber.Ctx) error {
+	var input services.TelegramLinkInput
+	if err := c.BodyParser(&input); err != nil {
+		return response.BadRequest(c, "invalid request body")
+	}
+	if err := h.validator.Validate(&input); err != nil {
+		return response.UnprocessableEntity(c, err.Error())
+	}
+
+	result, err := h.authSvc.TelegramLink(c.Context(), &input)
+	if err != nil {
+		switch {
+		case pkgerrors.Is(err, pkgerrors.ErrUnauthorized):
+			return response.Unauthorized(c, "invalid telegram data")
+		case pkgerrors.Is(err, pkgerrors.ErrInvalidCredentials):
+			return response.Unauthorized(c, "invalid email, phone, or password")
+		case pkgerrors.Is(err, pkgerrors.ErrConflict):
+			return response.Conflict(c, "telegram account already linked to another user")
+		default:
+			return response.InternalServerError(c, "link failed")
+		}
+	}
+	return response.OK(c, result)
+}
+
 func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	var input services.ForgotPasswordInput
 	if err := c.BodyParser(&input); err != nil {

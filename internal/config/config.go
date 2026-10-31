@@ -18,6 +18,11 @@ type Config struct {
 	CORS      CORSConfig
 	RateLimit RateLimitConfig
 	SMTP      SMTPConfig
+	Telegram  TelegramConfig
+}
+
+type TelegramConfig struct {
+	BotToken string
 }
 
 type SMTPConfig struct {
@@ -131,6 +136,8 @@ func Load() (*Config, error) {
 			AppURL:   viper.GetString("APP_URL"),
 		},
 	}
+
+	cfg.Telegram.BotToken = viper.GetString("TELEGRAM_BOT_TOKEN")
 
 	// Railway provides DATABASE_URL — parse it if individual fields are empty
 	if cfg.DB.Host == "" {

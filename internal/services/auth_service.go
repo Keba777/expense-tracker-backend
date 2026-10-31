@@ -13,6 +13,7 @@ import (
 	"expense-tracker/pkg/jwt"
 	"expense-tracker/pkg/mailer"
 	"expense-tracker/pkg/password"
+	"expense-tracker/pkg/telegram"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -47,6 +48,12 @@ type ChangePasswordInput struct {
 	NewPassword     string `json:"newPassword"     validate:"required,min=8"`
 }
 
+type TelegramLinkInput struct {
+	InitData   string `json:"initData"   validate:"required"`
+	Identifier string `json:"identifier" validate:"required"`
+	Password   string `json:"password"   validate:"required"`
+}
+
 type AuthResponse struct {
 	User   *models.UserResponse `json:"user"`
 	Tokens *jwt.TokenPair       `json:"tokens"`
@@ -63,6 +70,8 @@ type AuthService interface {
 	Register(ctx context.Context, input *RegisterInput) (*AuthResponse, error)
 	Login(ctx context.Context, input *LoginInput) (*AuthResponse, error)
 	RefreshTokens(ctx context.Context, refreshToken string) (*jwt.TokenPair, error)
+	TelegramLogin(ctx context.Context, initData string) (*AuthResponse, error)
+	TelegramLink(ctx context.Context, input *TelegramLinkInput) (*AuthResponse, error)
 	GetUser(ctx context.Context, userID uuid.UUID) (*models.UserResponse, error)
 	UpdateProfile(ctx context.Context, userID uuid.UUID, input *UpdateProfileInput) (*models.UserResponse, error)
 	ForgotPassword(ctx context.Context, input *ForgotPasswordInput) error
@@ -77,6 +86,7 @@ type authService struct {
 	jwtManager   *jwt.Manager
 	mailer       *mailer.Mailer
 	appURL       string
+	botToken     string
 }
 
 func NewAuthService(
@@ -86,6 +96,7 @@ func NewAuthService(
 	jwtManager *jwt.Manager,
 	m *mailer.Mailer,
 	appURL string,
+	botToken string,
 ) AuthService {
 	return &authService{
 		userRepo:     userRepo,
@@ -94,6 +105,7 @@ func NewAuthService(
 		jwtManager:   jwtManager,
 		mailer:       m,
 		appURL:       appURL,
+		botToken:     botToken,
 	}
 }
 
@@ -272,6 +284,61 @@ func (s *authService) ResetPassword(ctx context.Context, input *ResetPasswordInp
 	_ = s.resetRepo.Delete(ctx, resetToken.ID)
 
 	return nil
+}
+
+const telegramInitDataMaxAge = 24 * time.Hour
+
+// TelegramLogin signs in the user linked to the Telegram account in initData.
+// Returns ErrNotFound when the Telegram account has not been linked yet.
+func (s *authService) TelegramLogin(ctx context.Context, initData string) (*AuthResponse, error) {
+	tgUser, err := telegram.ValidateInitData(initData, s.botToken, telegramInitDataMaxAge)
+	if err != nil {
+		return nil, pkgerrors.ErrUnauthorized
+	}
+
+	user, err := s.userRepo.FindByTelegramID(ctx, tgUser.ID)
+	if err != nil {
+		if stdErrors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, pkgerrors.ErrNotFound
+		}
+		return nil, pkgerrors.ErrInternalServer
+	}
+	return s.authResponse(user)
+}
+
+// TelegramLink verifies the account credentials and binds the Telegram account to it.
+func (s *authService) TelegramLink(ctx context.Context, input *TelegramLinkInput) (*AuthResponse, error) {
+	tgUser, err := telegram.ValidateInitData(input.InitData, s.botToken, telegramInitDataMaxAge)
+	if err != nil {
+		return nil, pkgerrors.ErrUnauthorized
+	}
+
+	res, err := s.Login(ctx, &LoginInput{Identifier: input.Identifier, Password: input.Password})
+	if err != nil {
+		return nil, err
+	}
+
+	if other, err := s.userRepo.FindByTelegramID(ctx, tgUser.ID); err == nil && other.ID != res.User.ID {
+		return nil, pkgerrors.ErrConflict
+	}
+
+	user, err := s.userRepo.FindByID(ctx, res.User.ID)
+	if err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+	user.TelegramID = &tgUser.ID
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+	return res, nil
+}
+
+func (s *authService) authResponse(user *models.User) (*AuthResponse, error) {
+	tokens, err := s.jwtManager.GeneratePair(user.ID, user.Identifier(), string(user.Plan))
+	if err != nil {
+		return nil, pkgerrors.ErrInternalServer
+	}
+	return &AuthResponse{User: user.ToResponse(), Tokens: tokens}, nil
 }
 
 func (s *authService) RefreshTokens(ctx context.Context, refreshToken string) (*jwt.TokenPair, error) {

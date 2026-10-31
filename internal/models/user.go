@@ -22,6 +22,7 @@ type User struct {
 	PasswordHash    string         `gorm:"not null"                                       json:"-"`
 	FirstName       string         `gorm:"not null;size:100"                              json:"firstName"`
 	LastName        string         `gorm:"not null;size:100"                              json:"lastName"`
+	TelegramID      *int64         `gorm:"uniqueIndex"                                    json:"-"`
 	Currency        string         `gorm:"not null;default:'USD';size:3"                  json:"currency"`
 	Timezone        string         `gorm:"not null;default:'UTC';size:50"                 json:"timezone"`
 	AvatarURL       *string        `gorm:"size:500"                                       json:"avatarUrl,omitempty"`
